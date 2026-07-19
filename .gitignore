@@ -1,0 +1,10 @@
+# Local project notes
+/databricks-bookstore.md
+/databricks-bookstore-testing.md
+
+# Databricks bundle and dbt build artifacts
+/.databricks/
+/dbt_bookstore/dbt_packages/
+/dbt_bookstore/logs/
+/dbt_bookstore/profiles.yml
+/dbt_bookstore/target/

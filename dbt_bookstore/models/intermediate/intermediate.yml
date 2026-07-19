@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: int_order_lines
+    description: One row per position in each order's nested books array.
+    columns:
+      - name: order_line_id
+        description: Deterministic hash of order ID, event timestamp, and array position.
+      - name: order_line_position
+        description: Zero-based location of the line in the source books array.
+
+  - name: int_order_lines_priced
+    description: Order lines joined to the book version valid at order time.
+    columns:
+      - name: unit_price
+        description: Historical price effective at the order timestamp.
+      - name: calculated_subtotal
+        description: Quantity multiplied by the historical unit price.

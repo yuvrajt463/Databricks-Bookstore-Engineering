@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: stg_orders
+    description: Typed order events from the canonical Silver stream.
+    columns:
+      - name: order_id
+        description: Order business identifier.
+      - name: order_timestamp
+        description: Event time assigned by the bookstore source.
+      - name: loaded_at
+        description: Time the order entered the Silver pipeline.
+
+  - name: stg_customers
+    description: Non-PII customer attributes used by Gold analytics.
+    columns:
+      - name: customer_id
+        description: Customer business identifier.
+      - name: country
+        description: Enriched customer country.
+
+  - name: stg_books_history
+    description: Normalized SCD Type 2 book history.
+    columns:
+      - name: book_id
+        description: Book business identifier.
+      - name: valid_from
+        description: Inclusive start of the book-version validity window.
+      - name: valid_to
+        description: Exclusive end of the validity window; null for the current version.

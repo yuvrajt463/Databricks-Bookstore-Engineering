@@ -1,0 +1,40 @@
+name: bookstore
+version: 1.0.0
+config-version: 2
+
+profile: bookstore
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+vars:
+  source_schema: bookstore_eng_pro
+  audit_schema: bookstore_dbt_audit
+
+models:
+  bookstore:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +materialized: view
+      +tags: ["gold_validation"]
+    intermediate:
+      +materialized: view
+      +tags: ["gold_validation"]
+    marts:
+      +tags: ["gold_validation"]
+
+data_tests:
+  bookstore:
+    +severity: error
+    +error_if: ">0"
+    +warn_if: ">0"
+    +store_failures: true
+    +schema: bookstore_dbt_audit
+
+on-run-end:
+  - "{{ persist_validation_results(results) }}"

@@ -1,0 +1,22 @@
+resources:
+  pipelines:
+    bookstore_pipeline:
+      name: "[${bundle.target}] Bookstore Silver Pipeline"
+      catalog: ${var.catalog}
+      target: ${var.source_schema}
+      serverless: true
+      continuous: false
+      channel: CURRENT
+      edition: ADVANCED
+      photon: true
+      configuration:
+        dataset_path: /Volumes/${var.catalog}/${var.source_schema}/dataset
+      libraries:
+        - file:
+            path: ../Bookstore Pipeline/transformations/1_data_ingestion.py
+        - file:
+            path: ../Bookstore Pipeline/transformations/2_expectations.py
+        - file:
+            path: ../Bookstore Pipeline/transformations/3_auto_cdc.py
+        - file:
+            path: ../Bookstore Pipeline/transformations/4_auto_cdc.sql

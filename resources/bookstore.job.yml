@@ -1,0 +1,53 @@
+resources:
+  jobs:
+    bookstore_strict_validation:
+      name: "[${bundle.target}] Bookstore Strict dbt Validation"
+      max_concurrent_runs: 1
+
+      environments:
+        - environment_key: dbt_environment
+          spec:
+            environment_version: "2"
+            dependencies:
+              - dbt-databricks==1.12.2
+
+      tasks:
+        - task_key: refresh_silver_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.bookstore_pipeline.id}
+
+        - task_key: strict_dbt_validation
+          depends_on:
+            - task_key: refresh_silver_pipeline
+          environment_key: dbt_environment
+          dbt_task:
+            project_directory: ../dbt_bookstore
+            source: WORKSPACE
+            warehouse_id: ${var.warehouse_id}
+            catalog: ${var.catalog}
+            schema: ${var.target_schema}
+            commands:
+              - dbt deps
+              - >-
+                dbt parse --warn-error --no-partial-parse
+                --vars '{"source_schema": "${var.source_schema}", "audit_schema": "${var.audit_schema}"}'
+              - >-
+                dbt source freshness --select source:bookstore_silver --warn-error
+                --vars '{"source_schema": "${var.source_schema}", "audit_schema": "${var.audit_schema}"}'
+              - >-
+                dbt test --select "source:bookstore_silver tag:source_validation" --fail-fast
+                --vars '{"source_schema": "${var.source_schema}", "audit_schema": "${var.audit_schema}"}'
+              - >-
+                dbt build --select tag:gold_validation --fail-fast --warn-error
+                --vars '{"source_schema": "${var.source_schema}", "audit_schema": "${var.audit_schema}"}'
+
+        - task_key: validation_report
+          depends_on:
+            - task_key: strict_dbt_validation
+          run_if: ALL_DONE
+          notebook_task:
+            notebook_path: ../Validation/DBT Validation Report.py
+            base_parameters:
+              catalog: ${var.catalog}
+              source_schema: ${var.source_schema}
+              audit_schema: ${var.audit_schema}

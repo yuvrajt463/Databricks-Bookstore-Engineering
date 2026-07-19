@@ -8,7 +8,8 @@ def process_orders():
     return (spark.readStream.table("bronze")
                             .filter("topic = 'orders'")
                             .select(F.from_json(F.col("value").cast("string"), json_schema).alias("v"))
-                            .select("v.*"))
+                            .select("v.*")
+                            .withColumn("_loaded_at", F.current_timestamp()))
     
 
 @dp.table
@@ -45,4 +46,3 @@ def books_raw():
                     .select("v.*")
                     .withColumn("is_quarantined", F.expr(quarantine_rules))
             )
-

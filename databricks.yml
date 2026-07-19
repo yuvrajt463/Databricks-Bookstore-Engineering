@@ -1,0 +1,36 @@
+bundle:
+  name: databricks-bookstore-engineering
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog containing the bookstore schemas.
+    default: main
+  source_schema:
+    description: Schema populated by the declarative Silver pipeline.
+    default: bookstore_eng_pro
+  target_schema:
+    description: Schema where validated dbt Gold models are built.
+    default: bookstore_gold_dev
+  audit_schema:
+    description: Schema containing stored dbt failures and validation results.
+    default: bookstore_dbt_audit
+  warehouse_id:
+    description: ID of the serverless or pro SQL warehouse used by the native dbt task.
+
+sync:
+  exclude:
+    - databricks-bookstore.md
+    - databricks-bookstore-testing.md
+    - dbt_bookstore/target/**
+    - dbt_bookstore/logs/**
+    - dbt_bookstore/dbt_packages/**
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}

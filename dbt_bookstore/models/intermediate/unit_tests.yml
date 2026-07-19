@@ -1,0 +1,87 @@
+version: 2
+
+unit_tests:
+  - name: order_lines_preserve_array_grain_and_stable_keys
+    description: Empty arrays emit no rows, repeated books remain separate, and line IDs are deterministic.
+    model: int_order_lines
+    given:
+      - input: ref('stg_orders')
+        format: sql
+        rows: |
+          select
+            'O0' as order_id,
+            timestamp('2024-01-01 09:00:00') as order_timestamp,
+            'C1' as customer_id,
+            cast(0 as bigint) as order_quantity,
+            cast(0 as decimal(18, 2)) as order_total,
+            cast(array() as array<struct<book_id:string,quantity:bigint,subtotal:bigint>>) as books,
+            timestamp('2024-01-01 09:01:00') as loaded_at
+          union all
+          select
+            'O1', timestamp('2024-01-01 10:00:00'), 'C1', cast(1 as bigint), cast(10 as decimal(18, 2)),
+            array(named_struct('book_id', 'B1', 'quantity', cast(1 as bigint), 'subtotal', cast(10 as bigint))),
+            timestamp('2024-01-01 10:01:00')
+          union all
+          select
+            'O2', timestamp('2024-01-02 10:00:00'), 'C2', cast(3 as bigint), cast(30 as decimal(18, 2)),
+            array(
+              named_struct('book_id', 'B2', 'quantity', cast(1 as bigint), 'subtotal', cast(10 as bigint)),
+              named_struct('book_id', 'B2', 'quantity', cast(2 as bigint), 'subtotal', cast(20 as bigint))
+            ),
+            timestamp('2024-01-02 10:01:00')
+    expect:
+      format: sql
+      rows: |
+        select 'e7a725fe90313cd2d574ee702d829a08ad2375f34b40fddfd5142db32d24dae9' as order_line_id, 'O1' as order_id, cast(0 as int) as order_line_position, 'B1' as book_id, cast(1 as bigint) as quantity, cast(10 as decimal(18, 2)) as source_subtotal
+        union all
+        select '8c703cb5ddc9738ed0b42b216dac2bcc29cfa63aa09d9013c8ff5d3438016fcf', 'O2', cast(0 as int), 'B2', cast(1 as bigint), cast(10 as decimal(18, 2))
+        union all
+        select '1d42101afe9bbb31f9721d8c60a2648fed45e8f87850d701c1038882c30435cc', 'O2', cast(1 as int), 'B2', cast(2 as bigint), cast(20 as decimal(18, 2))
+
+  - name: order_lines_use_price_effective_at_order_time
+    description: Historical price joins are start-inclusive and end-exclusive; unknown books remain unmatched for strict downstream validation.
+    model: int_order_lines_priced
+    given:
+      - input: ref('int_order_lines')
+        format: sql
+        rows: |
+          select 'L1' as order_line_id, 'O1' as order_id, timestamp('2024-01-01 12:00:00') as order_timestamp, date('2024-01-01') as order_date, cast(0 as int) as order_line_position, 'C1' as customer_id, 'B1' as book_id, cast(1 as bigint) as quantity, cast(10 as decimal(18, 2)) as source_subtotal, timestamp('2024-01-01 12:01:00') as loaded_at
+          union all
+          select 'L2', 'O2', timestamp('2024-01-02 00:00:00'), date('2024-01-02'), cast(0 as int), 'C1', 'B1', cast(2 as bigint), cast(24 as decimal(18, 2)), timestamp('2024-01-02 00:01:00')
+          union all
+          select 'L3', 'O3', timestamp('2024-01-03 00:00:00'), date('2024-01-03'), cast(0 as int), 'C1', 'B9', cast(1 as bigint), cast(5 as decimal(18, 2)), timestamp('2024-01-03 00:01:00')
+      - input: ref('stg_books_history')
+        format: sql
+        rows: |
+          select 'B1' as book_id, 'Book One' as title, 'Author A' as author, cast(10 as decimal(18, 2)) as price, timestamp('2024-01-01 00:00:00') as valid_from, timestamp('2024-01-02 00:00:00') as valid_to, false as is_current, false as is_quarantined
+          union all
+          select 'B1', 'Book One', 'Author A', cast(12 as decimal(18, 2)), timestamp('2024-01-02 00:00:00'), cast(null as timestamp), true, false
+    expect:
+      format: sql
+      rows: |
+        select 'L1' as order_line_id, 'Author A' as author, cast(10 as decimal(18, 2)) as unit_price, cast(10 as decimal(18, 2)) as calculated_subtotal
+        union all
+        select 'L2', 'Author A', cast(12 as decimal(18, 2)), cast(24 as decimal(18, 2))
+        union all
+        select 'L3', cast(null as string), cast(null as decimal(18, 2)), cast(null as decimal(18, 2))
+
+  - name: author_daily_aggregates_across_order_and_date_grains
+    description: Author metrics count distinct orders and remain separated by calendar date.
+    model: agg_author_daily
+    given:
+      - input: ref('fct_order_line')
+        format: sql
+        rows: |
+          select date('2024-01-01') as order_date, 'Author A' as author, 'O1' as order_id, cast(1 as bigint) as quantity, cast(10 as decimal(18, 2)) as calculated_subtotal
+          union all
+          select date('2024-01-01'), 'Author A', 'O1', cast(2 as bigint), cast(20 as decimal(18, 2))
+          union all
+          select date('2024-01-01'), 'Author A', 'O2', cast(1 as bigint), cast(12 as decimal(18, 2))
+          union all
+          select date('2024-01-02'), 'Author A', 'O3', cast(1 as bigint), cast(12 as decimal(18, 2))
+    expect:
+      format: sql
+      rows: |
+        select date('2024-01-01') as order_date, 'Author A' as author, cast(2 as bigint) as orders_count, cast(4 as bigint) as units_sold, cast(42 as decimal(18, 2)) as gross_sales
+        union all
+        select date('2024-01-02'), 'Author A', cast(1 as bigint), cast(1 as bigint), cast(12 as decimal(18, 2))

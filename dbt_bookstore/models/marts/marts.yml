@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: fct_order_line
+    description: Validated order-line fact priced from the SCD2 book version effective at order time.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: order_line_id
+        data_type: string
+        description: Deterministic order-line identifier.
+        data_tests: [not_null, unique]
+      - name: order_id
+        data_type: string
+        data_tests: [not_null]
+      - name: order_timestamp
+        data_type: timestamp
+        data_tests: [not_null]
+      - name: order_date
+        data_type: date
+        data_tests: [not_null]
+      - name: order_line_position
+        data_type: int
+        data_tests: [not_null]
+      - name: customer_id
+        data_type: string
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: book_id
+        data_type: string
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_books_history')
+                field: book_id
+      - name: author
+        data_type: string
+        data_tests: [not_null]
+      - name: quantity
+        data_type: bigint
+        data_tests: [not_null]
+      - name: unit_price
+        data_type: decimal(18,2)
+        data_tests: [not_null]
+      - name: source_subtotal
+        data_type: decimal(18,2)
+        data_tests: [not_null]
+      - name: calculated_subtotal
+        data_type: decimal(18,2)
+        data_tests: [not_null]
+      - name: country
+        data_type: string
+        data_tests: [not_null]
+      - name: loaded_at
+        data_type: timestamp
+        data_tests: [not_null]
+
+  - name: agg_author_daily
+    description: Daily author-level order, unit, and gross-sales metrics.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: order_date
+        data_type: date
+        data_tests: [not_null]
+      - name: author
+        data_type: string
+        data_tests: [not_null]
+      - name: orders_count
+        data_type: bigint
+        data_tests: [not_null]
+      - name: units_sold
+        data_type: bigint
+        data_tests: [not_null]
+      - name: gross_sales
+        data_type: decimal(18,2)
+        data_tests: [not_null]
